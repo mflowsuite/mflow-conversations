@@ -1,0 +1,78 @@
+export const CHANNELS = [
+  {
+    id: 'cuarso',
+    name: 'Cuarso',
+    bot: 'Eri',
+    emoji: '🦷',
+    tableId: 'tbl9hcH6bU6PPetIq',
+    fields: {
+      fecha: 'fldMB4y02i8cpMtWm',
+      cliente: 'fldMLyhXIIGMfYinb',
+      bot: 'fld84jMaThxaaW47o',
+      sessionId: 'fldNROJb7j0M4jplx',
+    },
+    color: 'blue',
+    bgClass: 'bg-blue-50',
+    badgeClass: 'bg-blue-100 text-blue-700',
+    bubbleClass: 'bg-blue-600 text-white',
+    dotClass: 'bg-blue-500',
+  },
+  {
+    id: 'urban-denim',
+    name: 'Urban Denim',
+    bot: 'Lara',
+    emoji: '👖',
+    tableId: 'tblaJ3Vq1cMVHvNsL',
+    fields: {
+      fecha: 'fldN3VMkSAOih3NGH',
+      cliente: 'fldNdpvhy0mS7fC7w',
+      bot: 'fld9wa0uJzdg2doRJ',
+      sessionId: 'fldwDCbVvmh9ExmgL',
+    },
+    color: 'purple',
+    bgClass: 'bg-purple-50',
+    badgeClass: 'bg-purple-100 text-purple-700',
+    bubbleClass: 'bg-purple-600 text-white',
+    dotClass: 'bg-purple-500',
+  },
+  {
+    id: 'tinos',
+    name: 'Tinos',
+    bot: 'Cami',
+    emoji: '🍦',
+    tableId: 'tbl6XUcXUcfSagFTH',
+    fields: {
+      fecha: 'fldJhM3RLAhfKOF7D',
+      cliente: 'fldJrgMOr0PPA0uys',
+      bot: 'fld5K1h1CzGdvYgiF',
+      sessionId: 'fldERtE1oTwwTaBZK',
+    },
+    color: 'pink',
+    bgClass: 'bg-pink-50',
+    badgeClass: 'bg-pink-100 text-pink-700',
+    bubbleClass: 'bg-pink-500 text-white',
+    dotClass: 'bg-pink-400',
+  },
+  {
+    id: 'tinos-qr',
+    name: 'Tinos QR',
+    bot: 'Cami',
+    emoji: '📱',
+    tableId: 'tblxm6kydaxl4kPuK',
+    fields: {
+      fecha: 'fldaGYbs4yzIESPIG',
+      cliente: 'fldaQsUpKY7iu4E9v',
+      bot: 'fldw9dpCVxYGp2qTI',
+      sessionId: 'fldBz27zAK2GjSf1y',
+    },
+    color: 'pink',
+    bgClass: 'bg-pink-50',
+    badgeClass: 'bg-pink-100 text-pink-700',
+    bubbleClass: 'bg-pink-500 text-white',
+    dotClass: 'bg-pink-400',
+  },
+]
+
+export function getChannel(id) {
+  return CHANNELS.find((c) => c.id === id)
+}
