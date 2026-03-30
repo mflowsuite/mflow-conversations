@@ -21,6 +21,8 @@ const CHANNEL_CONFIG = {
   },
 }
 
+const TIME_WINDOW_MS = 30 * 60 * 1000 // 30 minutes
+
 async function fetchAllRecords(tableId, fields, token) {
   let records = []
   let offset = null
@@ -31,7 +33,7 @@ async function fetchAllRecords(tableId, fields, token) {
       params.append('fields[]', fieldId)
     }
     params.append('sort[0][field]', fields.fecha)
-    params.append('sort[0][direction]', 'desc')
+    params.append('sort[0][direction]', 'asc')
     if (offset) params.set('offset', offset)
 
     const url = `https://api.airtable.com/v0/${BASE_ID}/${tableId}?${params}`
@@ -62,13 +64,16 @@ export default async function handler(req, res) {
   if (!airtableToken) return res.status(500).json({ error: 'Server config error' })
 
   try {
+    // Fetch all records sorted oldest→newest so messages are in order
     const records = await fetchAllRecords(config.tableId, config.fields, airtableToken)
 
-    // Group by sessionId
     const sessionMap = new Map()
+
+    // Records WITH sessionId — group by sessionId
     for (const record of records) {
       const f = record.fields
-      const sessionId = f[config.fields.sessionId] || record.id
+      const sessionId = f[config.fields.sessionId]
+      if (!sessionId) continue
 
       if (!sessionMap.has(sessionId)) {
         sessionMap.set(sessionId, {
@@ -77,30 +82,76 @@ export default async function handler(req, res) {
           lastDate: f[config.fields.fecha],
           messageCount: 0,
           preview: '',
+          messages: [],
         })
       }
       const session = sessionMap.get(sessionId)
       session.messageCount += 1
-
       const fecha = f[config.fields.fecha]
       if (fecha > session.lastDate) session.lastDate = fecha
       if (fecha < session.firstDate) session.firstDate = fecha
-
-      // Use client message as preview (first one found)
       if (!session.preview && f[config.fields.cliente]) {
         session.preview = f[config.fields.cliente]
       }
+      session.messages.push({
+        id: record.id,
+        fecha,
+        cliente: f[config.fields.cliente] || null,
+        bot: f[config.fields.bot] || null,
+      })
     }
 
-    // Sort sessions by lastDate descending
+    // Records WITHOUT sessionId — group by 30-minute time windows
+    const noSessionRecords = records.filter(r => !r.fields[config.fields.sessionId])
+    // already sorted asc from fetch
+
+    let groupStart = null
+    let groupLast = null
+    let groupRecords = []
+
+    const flushGroup = () => {
+      if (!groupRecords.length) return
+      const startTs = Math.floor(new Date(groupStart).getTime() / 1000)
+      const endTs = Math.floor(new Date(groupLast).getTime() / 1000)
+      const sessionId = `time_${startTs}_${endTs}`
+      sessionMap.set(sessionId, {
+        sessionId,
+        firstDate: groupStart,
+        lastDate: groupLast,
+        messageCount: groupRecords.length,
+        preview: groupRecords[0].fields[config.fields.cliente] || '',
+        messages: groupRecords.map(r => ({
+          id: r.id,
+          fecha: r.fields[config.fields.fecha],
+          cliente: r.fields[config.fields.cliente] || null,
+          bot: r.fields[config.fields.bot] || null,
+        })),
+      })
+      groupStart = null
+      groupLast = null
+      groupRecords = []
+    }
+
+    for (const record of noSessionRecords) {
+      const fecha = record.fields[config.fields.fecha]
+      if (!fecha) continue
+      const fechaMs = new Date(fecha).getTime()
+
+      if (groupLast && fechaMs - new Date(groupLast).getTime() > TIME_WINDOW_MS) {
+        flushGroup()
+      }
+
+      if (!groupStart) groupStart = fecha
+      groupLast = fecha
+      groupRecords.push(record)
+    }
+    flushGroup()
+
     const sessions = Array.from(sessionMap.values()).sort(
       (a, b) => new Date(b.lastDate) - new Date(a.lastDate)
     )
 
-    return res.status(200).json({
-      sessions,
-      totalSessions: sessions.length,
-    })
+    return res.status(200).json({ sessions, totalSessions: sessions.length })
   } catch (err) {
     console.error(err)
     return res.status(500).json({ error: err.message })

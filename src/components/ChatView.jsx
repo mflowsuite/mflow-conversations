@@ -1,43 +1,17 @@
-import { useState, useEffect, useRef } from 'react'
-import { useAuth } from '../hooks/useAuth'
+import { useEffect, useRef } from 'react'
 import { getChannel } from '../lib/channels'
 import { cn, formatMessageDate } from '../lib/utils'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 export default function ChatView({ session, channelId }) {
-  const { authFetch } = useAuth()
-  const [messages, setMessages] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
   const bottomRef = useRef(null)
-
   const channel = getChannel(channelId)
-
-  useEffect(() => {
-    if (!session || !channelId) return
-    setMessages([])
-    setLoading(true)
-    setError(null)
-
-    const params = new URLSearchParams({
-      channel: channelId,
-      sessionId: session.sessionId,
-    })
-
-    authFetch(`/api/messages?${params}`)
-      .then((res) => {
-        if (!res.ok) throw new Error('Error al cargar mensajes')
-        return res.json()
-      })
-      .then((data) => setMessages(data.messages))
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
-  }, [session?.sessionId, channelId]) // eslint-disable-line
+  const messages = session?.messages || []
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [session?.sessionId])
 
   if (!session || !channel) {
     return (
@@ -70,22 +44,14 @@ export default function ChatView({ session, channelId }) {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-        {loading && (
-          <div className="flex items-center justify-center py-12 text-slate-400 text-sm gap-2">
-            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            Cargando mensajes...
+        {messages.length === 0 && (
+          <div className="flex items-center justify-center py-12 text-slate-400 text-sm">
+            Sin mensajes en esta conversación
           </div>
         )}
 
-        {error && (
-          <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm">{error}</div>
-        )}
-
         {messages.map((msg, i) => (
-          <MessageTurn key={i} msg={msg} channel={channel} />
+          <MessageTurn key={msg.id || i} msg={msg} channel={channel} />
         ))}
 
         <div ref={bottomRef} />
