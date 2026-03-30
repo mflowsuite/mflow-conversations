@@ -1,8 +1,77 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getChannel } from '../lib/channels'
 import { cn, formatMessageDate } from '../lib/utils'
+import { format } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+
+function formatConversationText(session, channel) {
+  const isRealId = !session.sessionId.startsWith('auto-')
+  const idLine = isRealId
+    ? `ID: ${session.sessionId}`
+    : format(new Date(session.firstDate), 'dd/MM/yyyy HH:mm')
+
+  const header = [
+    `Bot Viewer — ${channel.name}`,
+    idLine,
+    channel.bot,
+    '―'.repeat(40),
+    '',
+  ].join('\n')
+
+  const msgs = session.messages
+    .filter(m => m.cliente || m.bot)
+    .map(msg => {
+      const time = msg.fecha ? format(new Date(msg.fecha), 'HH:mm:ss') : ''
+      const lines = [time]
+      if (msg.cliente) lines.push(`C: ${msg.cliente}`)
+      if (msg.bot) lines.push(`${channel.bot}: ${msg.bot}`)
+      return lines.join('\n')
+    })
+
+  return header + msgs.join('\n\n')
+}
+
+function CopyButtons({ session, channel }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    const text = formatConversationText(session, channel)
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  if (copied) {
+    return (
+      <div className="flex gap-2 justify-end">
+        <span className="flex items-center gap-1.5 px-4 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium">
+          🆗 Copiado
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex gap-2 justify-end">
+      <button
+        onClick={handleCopy}
+        className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-sm transition-colors"
+        title="Copiar conversación"
+      >
+        📋 Copiar
+      </button>
+      <button
+        onClick={handleCopy}
+        className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-sm transition-colors"
+        title="Exportar conversación"
+      >
+        📤 Exportar
+      </button>
+    </div>
+  )
+}
 
 export default function ChatView({ session, channelId }) {
   const bottomRef = useRef(null)
@@ -55,6 +124,11 @@ export default function ChatView({ session, channelId }) {
         ))}
 
         <div ref={bottomRef} />
+      </div>
+
+      {/* Footer with copy/export buttons */}
+      <div className="bg-white border-t border-slate-100 px-6 py-3 flex-shrink-0">
+        <CopyButtons session={session} channel={channel} />
       </div>
     </div>
   )
