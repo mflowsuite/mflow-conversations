@@ -37,24 +37,37 @@ export default async function handler(req, res) {
   if (!airtableToken) return res.status(500).json({ error: 'Server config error' })
 
   try {
-    const params = new URLSearchParams({
-      filterByFormula: `{${config.fields.sessionId}} = "${sessionId}"`,
-      pageSize: 100,
-    })
-    params.append('sort[0][field]', config.fields.fecha)
-    params.append('sort[0][direction]', 'asc')
-    for (const fieldId of Object.values(config.fields)) {
-      params.append('fields[]', fieldId)
+    let records
+
+    // If sessionId is a record ID fallback (no real sessionId), fetch that record directly
+    if (sessionId.startsWith('rec')) {
+      const url = `https://api.airtable.com/v0/${BASE_ID}/${config.tableId}/${sessionId}`
+      const airtableRes = await fetch(url, {
+        headers: { Authorization: `Bearer ${airtableToken}` },
+      })
+      if (!airtableRes.ok) throw new Error(`Airtable error: ${airtableRes.status}`)
+      const record = await airtableRes.json()
+      records = [record]
+    } else {
+      const params = new URLSearchParams({
+        filterByFormula: `{${config.fields.sessionId}} = "${sessionId}"`,
+        pageSize: 100,
+      })
+      params.append('sort[0][field]', config.fields.fecha)
+      params.append('sort[0][direction]', 'asc')
+      for (const fieldId of Object.values(config.fields)) {
+        params.append('fields[]', fieldId)
+      }
+      const url = `https://api.airtable.com/v0/${BASE_ID}/${config.tableId}?${params}`
+      const airtableRes = await fetch(url, {
+        headers: { Authorization: `Bearer ${airtableToken}` },
+      })
+      if (!airtableRes.ok) throw new Error(`Airtable error: ${airtableRes.status}`)
+      const data = await airtableRes.json()
+      records = data.records
     }
 
-    const url = `https://api.airtable.com/v0/${BASE_ID}/${config.tableId}?${params}`
-    const airtableRes = await fetch(url, {
-      headers: { Authorization: `Bearer ${airtableToken}` },
-    })
-    if (!airtableRes.ok) throw new Error(`Airtable error: ${airtableRes.status}`)
-    const data = await airtableRes.json()
-
-    const messages = data.records.map((r) => ({
+    const messages = records.map((r) => ({
       id: r.id,
       fecha: r.fields[config.fields.fecha],
       cliente: r.fields[config.fields.cliente] || null,
