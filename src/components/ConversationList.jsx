@@ -39,7 +39,7 @@ export default function ConversationList({ channelId, activeSessionId, onSelect,
     setSessions([])
     setCursor(null)
     loadSessions(true)
-    const interval = setInterval(() => loadSessions(true), 30000)
+    const interval = setInterval(() => loadSessions(true), 10000)
     return () => clearInterval(interval)
   }, [channelId]) // eslint-disable-line
 
