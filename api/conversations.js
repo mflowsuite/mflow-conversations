@@ -21,32 +21,85 @@ const CHANNEL_CONFIG = {
   },
 }
 
-const TIME_WINDOW_MS = 30 * 60 * 1000 // 30 minutes
+const GAP_MS = 15 * 60 * 1000 // 15 minutes between messages = new session
 
 async function fetchAllRecords(tableId, fields, token) {
   let records = []
   let offset = null
 
   do {
-    const params = new URLSearchParams({ pageSize: 100 })
+    const params = new URLSearchParams()
     for (const fieldId of Object.values(fields)) {
       params.append('fields[]', fieldId)
     }
-    params.append('sort[0][field]', fields.fecha)
-    params.append('sort[0][direction]', 'asc')
+    params.set('sort[0][field]', fields.fecha)
+    params.set('sort[0][direction]', 'asc')
+    params.set('pageSize', '100')
+    params.set('returnFieldsByFieldId', 'true') // keys are field IDs, not names
     if (offset) params.set('offset', offset)
 
     const url = `https://api.airtable.com/v0/${BASE_ID}/${tableId}?${params}`
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     })
-    if (!res.ok) throw new Error(`Airtable error: ${res.status}`)
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(`Airtable ${res.status}: ${text}`)
+    }
     const data = await res.json()
-    records = records.concat(data.records)
+    records = records.concat(data.records || [])
     offset = data.offset || null
   } while (offset)
 
   return records
+}
+
+function groupIntoSessions(records, fields) {
+  const sessionMap = new Map()
+  let lastAutoSession = null
+
+  for (const record of records) {
+    const f = record.fields
+    const realSid = f[fields.sessionId]
+    const date = f[fields.fecha] || record.createdTime
+    const msg = {
+      id: record.id,
+      fecha: date,
+      cliente: f[fields.cliente] || null,
+      bot: f[fields.bot] || null,
+    }
+
+    if (realSid) {
+      if (!sessionMap.has(realSid)) {
+        sessionMap.set(realSid, { sessionId: realSid, firstDate: date, lastDate: date, messages: [] })
+      }
+      const s = sessionMap.get(realSid)
+      s.lastDate = date
+      s.messages.push(msg)
+      lastAutoSession = null
+    } else {
+      const needNew = !lastAutoSession ||
+        (new Date(date) - new Date(lastAutoSession.lastDate)) > GAP_MS
+      if (needNew) {
+        const sid = `auto-${record.id}`
+        lastAutoSession = { sessionId: sid, firstDate: date, lastDate: date, messages: [] }
+        sessionMap.set(sid, lastAutoSession)
+      }
+      lastAutoSession.lastDate = date
+      lastAutoSession.messages.push(msg)
+    }
+  }
+
+  return Array.from(sessionMap.values())
+    .sort((a, b) => new Date(b.lastDate) - new Date(a.lastDate))
+    .map(s => ({
+      sessionId: s.sessionId,
+      firstDate: s.firstDate,
+      lastDate: s.lastDate,
+      messageCount: s.messages.length,
+      preview: (s.messages[0]?.cliente || '').substring(0, 120),
+      messages: s.messages,
+    }))
 }
 
 export default async function handler(req, res) {
@@ -64,93 +117,8 @@ export default async function handler(req, res) {
   if (!airtableToken) return res.status(500).json({ error: 'Server config error' })
 
   try {
-    // Fetch all records sorted oldest→newest so messages are in order
     const records = await fetchAllRecords(config.tableId, config.fields, airtableToken)
-
-    const sessionMap = new Map()
-
-    // Records WITH sessionId — group by sessionId
-    for (const record of records) {
-      const f = record.fields
-      const sessionId = f[config.fields.sessionId]
-      if (!sessionId) continue
-
-      if (!sessionMap.has(sessionId)) {
-        sessionMap.set(sessionId, {
-          sessionId,
-          firstDate: f[config.fields.fecha],
-          lastDate: f[config.fields.fecha],
-          messageCount: 0,
-          preview: '',
-          messages: [],
-        })
-      }
-      const session = sessionMap.get(sessionId)
-      session.messageCount += 1
-      const fecha = f[config.fields.fecha]
-      if (fecha > session.lastDate) session.lastDate = fecha
-      if (fecha < session.firstDate) session.firstDate = fecha
-      if (!session.preview && f[config.fields.cliente]) {
-        session.preview = f[config.fields.cliente]
-      }
-      session.messages.push({
-        id: record.id,
-        fecha,
-        cliente: f[config.fields.cliente] || null,
-        bot: f[config.fields.bot] || null,
-      })
-    }
-
-    // Records WITHOUT sessionId — group by 30-minute time windows
-    const noSessionRecords = records.filter(r => !r.fields[config.fields.sessionId])
-    // already sorted asc from fetch
-
-    let groupStart = null
-    let groupLast = null
-    let groupRecords = []
-
-    const flushGroup = () => {
-      if (!groupRecords.length) return
-      const startTs = Math.floor(new Date(groupStart).getTime() / 1000)
-      const endTs = Math.floor(new Date(groupLast).getTime() / 1000)
-      const sessionId = `time_${startTs}_${endTs}`
-      sessionMap.set(sessionId, {
-        sessionId,
-        firstDate: groupStart,
-        lastDate: groupLast,
-        messageCount: groupRecords.length,
-        preview: groupRecords[0].fields[config.fields.cliente] || '',
-        messages: groupRecords.map(r => ({
-          id: r.id,
-          fecha: r.fields[config.fields.fecha],
-          cliente: r.fields[config.fields.cliente] || null,
-          bot: r.fields[config.fields.bot] || null,
-        })),
-      })
-      groupStart = null
-      groupLast = null
-      groupRecords = []
-    }
-
-    for (const record of noSessionRecords) {
-      const fecha = record.fields[config.fields.fecha]
-      if (!fecha) continue
-      const fechaMs = new Date(fecha).getTime()
-
-      if (groupLast && fechaMs - new Date(groupLast).getTime() > TIME_WINDOW_MS) {
-        flushGroup()
-      }
-
-      if (!groupStart) groupStart = fecha
-      groupLast = fecha
-      groupRecords.push(record)
-    }
-    flushGroup()
-
-    const sessions = Array.from(sessionMap.values()).sort(
-      (a, b) => new Date(b.lastDate) - new Date(a.lastDate)
-    )
-
+    const sessions = groupIntoSessions(records, config.fields)
     return res.status(200).json({ sessions, totalSessions: sessions.length })
   } catch (err) {
     console.error(err)
