@@ -7,98 +7,117 @@ Usuario (browser)
       │
       │ HTTPS
       ▼
-chat.mflowsuite.com  (CNAME → Vercel)
+chat.mflowsuite.com  (Cloudflare DNS → CNAME → Vercel, proxy OFF)
       │
-  ┌───┴──────────────────────────────┐
-  │         Vercel                   │
-  │                                  │
-  │  ┌─────────────────────────┐     │
-  │  │  React + Vite (static)  │     │
-  │  │  - Login page           │     │
-  │  │  - Dashboard (3 paneles)│     │
-  │  │  - Sidebar (4 bots)     │     │
-  │  │  - ConversationList     │     │
-  │  │  - ChatView             │     │
-  │  └────────────┬────────────┘     │
-  │               │ fetch            │
-  │  ┌────────────▼────────────┐     │
-  │  │  Serverless Functions   │     │
-  │  │  POST /api/login        │     │
-  │  │  GET  /api/conversations│─────┼──► Airtable API
-  │  │  GET  /api/messages     │     │    (base appKeg7OfvXmVrAiC)
-  │  └─────────────────────────┘     │
-  └──────────────────────────────────┘
+  ┌───┴──────────────────────────────────┐
+  │            Vercel                    │
+  │                                      │
+  │  React + Vite (build estático)       │
+  │  - Login, Sidebar, ConversationList  │
+  │  - ChatView con burbujas y botones   │
+  │                                      │
+  │  Serverless Functions (/api/)        │
+  │  POST /api/login                     │
+  │  GET  /api/conversations  ───────────┼──► Airtable REST API
+  └──────────────────────────────────────┘    base: appKeg7OfvXmVrAiC
 ```
 
-## Flujo de Autenticación
+## Flujo de autenticación
 
 ```
 1. Usuario ingresa usuario/contraseña en Login
 2. Frontend → POST /api/login { username, password }
-3. Serverless function compara con AUTH_USER / AUTH_PASS (env vars)
-4. Si correcto → devuelve JWT firmado (expira en 24h)
-5. Frontend guarda JWT en localStorage
-6. Todos los requests a /api/* incluyen header: Authorization: Bearer <jwt>
-7. Serverless functions validan JWT antes de consultar Airtable
+3. api/login.js compara con AUTH_USER / AUTH_PASS (env vars en Vercel)
+4. Si correcto → devuelve JWT firmado con HS256 usando `jose` (expira 24h)
+5. El token se guarda en localStorage bajo la clave `mflow_token`
+6. AuthContext (React Context) lo distribuye a toda la app
+7. authFetch() inyecta Authorization: Bearer <token> en cada request a /api/*
 ```
 
-## Flujo de Datos (Conversaciones)
+## Flujo de datos
 
 ```
-1. Usuario selecciona un canal (ej: Urban Denim)
-2. Frontend → GET /api/conversations?channel=urban-denim
-3. Function consulta Airtable: todos los registros de tblaJ3Vq1cMVHvNsL
-4. Function agrupa registros por sessionId en el servidor
-5. Devuelve lista de sesiones con: sessionId, fecha, nro de mensajes, preview
-6. Usuario clickea una sesión
-7. Frontend → GET /api/messages?channel=urban-denim&sessionId=xxx
-8. Function devuelve todos los mensajes de esa sesión ordenados por Fecha
-9. Frontend renderiza como burbujas de chat
+1. ConversationList llama a GET /api/conversations?channel=<channelId>
+2. api/conversations.js:
+   a. Verifica JWT
+   b. Fetch ALL records de la tabla Airtable (con paginación interna)
+      ⚠️ CRÍTICO: usa returnFieldsByFieldId=true para indexar por field ID
+   c. Agrupa registros en sesiones:
+      - Registro tiene sessionId real → agrupa por ese UUID
+      - Registro sin sessionId → agrupa con contiguos (gap < 15 min),
+        ID generado: auto-<recordId>
+   d. Incluye array messages[] completo en cada sesión
+   e. Devuelve { sessions, totalSessions }
+3. ConversationList muestra las sesiones
+4. Auto-refresh cada 10 segundos (reemplaza la lista completa)
+5. Al click en una sesión → ChatView usa session.messages directamente
+   (sin segunda llamada a la API)
 ```
 
-## Estructura de Carpetas
+## ⚠️ Decisiones críticas de implementación
+
+### `returnFieldsByFieldId=true` en Airtable
+Sin este parámetro, Airtable devuelve los campos con el NOMBRE como clave
+(ej: `"Fecha"`, `"sessionId"`). El código accede por ID de campo
+(ej: `"fldMB4y02i8cpMtWm"`). Si falta este flag → todos los campos son
+`undefined` → 0 sesiones.
+
+### Mensajes incluidos en sessions (no endpoint separado)
+El archivo `api/messages.js` existe pero NO SE USA. Los mensajes se
+incluyen en la respuesta de `/api/conversations` para:
+- Evitar una segunda llamada por cada sesión clickeada
+- Evitar problemas con `filterByFormula` en Airtable (requiere nombres de
+  campos, y nosotros tenemos field IDs)
+
+### Sesiones sin sessionId
+Registros sin campo `sessionId` se agrupan automáticamente por proximidad
+temporal (gap > 15 min = nueva sesión). ID: `auto-<recordId del primer mensaje>`.
+
+## Estructura de archivos
 
 ```
 Chat QR Viewer/
-├── README.md
-├── docs/                        ← documentación del proyecto
-│   ├── ARQUITECTURA.md
-│   ├── AIRTABLE.md
-│   ├── ENV_VARIABLES.md
-│   ├── DEPLOY.md
-│   └── DESARROLLO.md
-├── src/                         ← código fuente React
+├── api/                         ← Vercel Serverless Functions
+│   ├── _auth.js                 ← helper: verifica JWT en cada request
+│   ├── login.js                 ← POST /api/login
+│   ├── conversations.js         ← GET /api/conversations (único endpoint de datos)
+│   └── messages.js              ← NO SE USA (está pero deprecado)
+├── src/
+│   ├── contexts/
+│   │   └── AuthContext.jsx      ← estado global del JWT (login/logout/authFetch)
+│   ├── hooks/
+│   │   └── useAuth.js           ← re-exporta useAuth desde AuthContext
+│   ├── lib/
+│   │   ├── channels.js          ← config de los 4 canales con field IDs
+│   │   └── utils.js             ← helpers: cn(), formatMessageDate(), truncate()
 │   ├── components/
-│   │   ├── ui/                  ← componentes shadcn/ui (auto-generados)
 │   │   ├── Login.jsx
 │   │   ├── Sidebar.jsx
-│   │   ├── ConversationList.jsx
-│   │   └── ChatView.jsx
-│   ├── hooks/
-│   │   └── useAuth.js
-│   ├── lib/
-│   │   └── utils.js             ← helpers (cn, formatDate, etc.)
-│   ├── App.jsx
-│   ├── App.css
+│   │   ├── ConversationList.jsx ← auto-refresh 10s, búsqueda local
+│   │   └── ChatView.jsx         ← burbujas MD, botón 📤 exportar, 📋 por burbuja
+│   ├── App.jsx                  ← layout 3 paneles + mobile navigation
 │   └── main.jsx
-├── api/                         ← Vercel Serverless Functions
-│   ├── login.js                 ← POST /api/login
-│   ├── conversations.js         ← GET /api/conversations
-│   └── messages.js              ← GET /api/messages
+├── docs/
 ├── public/
-├── .env.example                 ← plantilla de variables de entorno
-├── .env.local                   ← variables locales (en .gitignore)
-├── .gitignore
 ├── package.json
 ├── vite.config.js
-├── tailwind.config.js
-├── components.json              ← config shadcn/ui
 └── vercel.json
+```
+
+## Estado del frontend (React)
+
+```
+AuthContext
+└── App.jsx
+      ├── activeChannel (string: 'cuarso' | 'urban-denim' | 'tinos' | 'tinos-qr')
+      ├── activeSession (objeto completo: { sessionId, messages[], ... })
+      ├── counts ({ channelId: totalSessions })
+      └── mobilePanel ('sidebar' | 'conversations' | 'chat')
 ```
 
 ## Seguridad
 
-- El `AIRTABLE_TOKEN` **nunca** llega al browser — solo lo usan las serverless functions
+- `AIRTABLE_TOKEN` nunca llega al browser — solo lo usan las serverless functions
 - JWT firmado con `AUTH_SECRET` (HMAC-SHA256 via `jose`)
-- Las funciones retornan 401 si el JWT es inválido o expirado
-- Las credenciales `AUTH_USER` / `AUTH_PASS` viven solo en las env vars de Vercel
+- Funciones retornan 401 si el JWT es inválido o expirado
+- Credenciales viven solo como env vars en Vercel, nunca en código fuente

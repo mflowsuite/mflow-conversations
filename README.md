@@ -1,54 +1,45 @@
-# mflow-conversations — Dashboard de Conversaciones
+# mflow-conversations
 
-Dashboard centralizado para monitorear las conversaciones de los bots de IA de **mFlowSuite**.
-Consume datos de Airtable en tiempo real, agrupando mensajes por sesión.
+Dashboard web para monitorear conversaciones de los bots de IA de mflowsuite.
 
-## Bots monitoreados
+**URL producción:** https://chat.mflowsuite.com
+**Repo:** https://github.com/mflowsuite/mflow-conversations
+**Deploy:** Vercel — auto-deploy en cada `git push origin main`
 
-| Bot | Negocio | Tabla Airtable |
-|-----|---------|----------------|
-| Eri | Distribuidora Cuarso | Preguntas Cuarso |
-| Lara | Urban Denim | Urban Denim |
-| Cami | Tinos Heladería (web) | Tinos |
-| Cami | Tinos Heladería (QR) | Tinos QR |
+## Bots / Canales
+
+| Canal | Bot | Negocio |
+|-------|-----|---------|
+| 🦷 Cuarso | Eri | Cuarso dental |
+| 👖 Urban Denim | Lara | Urban Denim ropa |
+| 🍦 Tinos | Cami | Tinos helados (web) |
+| 📱 Tinos QR | Cami | Tinos helados (QR físico) |
 
 ## Stack
 
-- **Frontend**: React 18 + Vite + shadcn/ui + Tailwind CSS
-- **Backend**: Vercel Serverless Functions (API proxy seguro)
-- **Auth**: JWT firmado con `jose`
-- **Datos**: Airtable REST API (base `appKeg7OfvXmVrAiC`)
-- **Hosting**: Vercel → dominio `chat.mflowsuite.com`
+- **Frontend:** React 18 + Vite + Tailwind CSS
+- **Backend:** Vercel Serverless Functions (`/api`)
+- **Auth:** JWT HS256 con `jose` (24h)
+- **Datos:** Airtable REST API (base `appKeg7OfvXmVrAiC`)
+- **DNS:** Cloudflare (CNAME → Vercel, proxy OFF)
+
+## Deploy rápido
+
+```bash
+git add .
+git commit -m "descripción"
+git push origin main
+# Vercel despliega en ~1 min
+```
+
+> El email del committer git debe ser `mflowsuite@gmail.com`
 
 ## Documentación
 
-| Documento | Descripción |
-|-----------|-------------|
-| [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md) | Visión general del sistema y flujo de datos |
-| [docs/AIRTABLE.md](docs/AIRTABLE.md) | Schema completo de las 4 tablas con IDs de campos |
-| [docs/ENV_VARIABLES.md](docs/ENV_VARIABLES.md) | Variables de entorno requeridas y dónde configurarlas |
-| [docs/DEPLOY.md](docs/DEPLOY.md) | Guía paso a paso: GitHub → Vercel → Cloudflare DNS |
-| [docs/DESARROLLO.md](docs/DESARROLLO.md) | Cómo correr el proyecto localmente |
-
-## Inicio rápido
-
-```bash
-# Instalar dependencias
-npm install
-
-# Crear archivo de variables de entorno local
-cp .env.example .env.local
-# Editar .env.local con tus valores
-
-# Correr en desarrollo
-npm run dev
-```
-
-## Deploy
-
-Ver [docs/DEPLOY.md](docs/DEPLOY.md) para instrucciones completas.
-El deploy es automático en cada `git push` a `main` via Vercel.
-
----
-
-*Proyecto de mFlowSuite — [mflowsuite.com](https://mflowsuite.com)*
+| Doc | Contenido |
+|-----|-----------|
+| [ARQUITECTURA.md](docs/ARQUITECTURA.md) | Flujo de datos, decisiones de implementación, estructura |
+| [AIRTABLE.md](docs/AIRTABLE.md) | Field IDs de las 4 tablas, nota crítica sobre `returnFieldsByFieldId` |
+| [ENV_VARIABLES.md](docs/ENV_VARIABLES.md) | Variables de entorno y cómo configurarlas |
+| [DEPLOY.md](docs/DEPLOY.md) | Deploy, DNS Cloudflare, troubleshooting de Vercel |
+| [DESARROLLO.md](docs/DESARROLLO.md) | Setup local, comandos, cómo agregar un canal nuevo |

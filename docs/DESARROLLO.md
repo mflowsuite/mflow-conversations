@@ -1,111 +1,104 @@
-# Guía de Desarrollo Local
+# Desarrollo Local
 
-## Requisitos
-
-- **Node.js** v18 o superior (`node --version`)
-- **npm** v9 o superior (`npm --version`)
-- **Git**
-
----
-
-## Setup inicial (primera vez)
+## Setup
 
 ```bash
-# 1. Clonar el repo
-git clone https://github.com/[tu-usuario]/mflow-conversations.git
+# Clonar el repo
+git clone https://github.com/mflowsuite/mflow-conversations.git
 cd mflow-conversations
 
-# 2. Instalar dependencias
+# Instalar dependencias
 npm install
 
-# 3. Crear variables de entorno
-cp .env.example .env.local
-# Editar .env.local con los valores reales (ver docs/ENV_VARIABLES.md)
+# Variables de entorno (ver docs/ENV_VARIABLES.md)
+# Crear .env.local con AIRTABLE_TOKEN, AUTH_SECRET, AUTH_USER, AUTH_PASS
 
-# 4. Correr en desarrollo
-npm run dev
+# Correr con Vercel dev (incluye las API functions)
+npx vercel dev
 ```
 
-El servidor arranca en `http://localhost:5173`
+Con `npx vercel dev`, el frontend corre en `http://localhost:3000` y las
+functions en `/api/*` también funcionan localmente.
 
----
+> `npm run dev` (Vite solo) NO sirve para probar las funciones de `/api`.
 
-## Comandos disponibles
+## Comandos
 
-| Comando | Descripción |
-|---------|-------------|
-| `npm run dev` | Servidor de desarrollo con hot-reload |
-| `npm run build` | Build de producción (genera carpeta `dist/`) |
-| `npm run preview` | Preview del build de producción |
-| `npx vercel dev` | Simula el entorno Vercel localmente (funciones + frontend) |
+| Comando | Uso |
+|---------|-----|
+| `npx vercel dev` | Desarrollo completo (frontend + API functions) |
+| `npm run dev` | Solo frontend (útil para trabajo en UI sin API) |
+| `npm run build` | Build de producción — correr antes de pushear para verificar |
+| `npm run preview` | Preview del build |
 
-> **Recomendado para desarrollo**: usar `npx vercel dev` en vez de `npm run dev` para que las API functions también funcionen localmente.
+## Archivos clave
 
----
+### Backend (`/api`)
+- `api/_auth.js` — verifica el JWT en cada request (importado por las otras functions)
+- `api/login.js` — `POST /api/login` — valida usuario/pass, devuelve JWT
+- `api/conversations.js` — `GET /api/conversations?channel=xxx` — único endpoint de datos
 
-## Estructura de archivos clave
+### Frontend (`/src`)
+- `src/contexts/AuthContext.jsx` — estado global: token, login, logout, authFetch
+- `src/lib/channels.js` — config de los 4 canales con field IDs de Airtable
+- `src/lib/utils.js` — formatMessageDate, formatRelativeDate, truncate, cn
+- `src/components/ConversationList.jsx` — lista de sesiones + auto-refresh 10s
+- `src/components/ChatView.jsx` — burbujas de chat + botones 📤/📋
+- `src/App.jsx` — layout, navegación mobile
 
-```
-src/
-├── lib/
-│   └── channels.js          ← configuración de los 4 canales (IDs Airtable)
-├── hooks/
-│   └── useAuth.js           ← gestión del JWT en localStorage
-├── components/
-│   ├── Login.jsx            ← pantalla de login
-│   ├── Sidebar.jsx          ← lista de canales con badges
-│   ├── ConversationList.jsx ← lista de sesiones del canal seleccionado
-│   └── ChatView.jsx         ← burbujas de chat de una sesión
-├── App.jsx                  ← router principal (login vs dashboard)
-└── main.jsx                 ← punto de entrada
+## Cómo agregar un canal nuevo
 
-api/
-├── login.js                 ← POST /api/login → valida credenciales, devuelve JWT
-├── conversations.js         ← GET /api/conversations?channel=xxx → lista de sesiones
-└── messages.js              ← GET /api/messages?channel=xxx&sessionId=xxx → mensajes
-```
-
----
-
-## Cómo agregar un nuevo canal/bot
-
-1. Agregar la configuración en `src/lib/channels.js` (ver [docs/AIRTABLE.md](AIRTABLE.md))
-2. El resto del dashboard lo toma automáticamente — no hay más cambios necesarios
-
----
-
-## Flujo de datos en desarrollo
-
-```
-npm run dev / npx vercel dev
-       │
-       ▼
-localhost:5173 (frontend React)
-       │
-       │ fetch /api/login
-       │ fetch /api/conversations?channel=xxx
-       │ fetch /api/messages?channel=xxx&sessionId=xxx
-       ▼
-localhost:3000/api/* (Vercel functions corriendo localmente)
-       │
-       │ Authorization: Bearer <jwt>
-       ▼
-api.airtable.com (Airtable REST API)
+1. En `api/conversations.js`, agregar entrada en `CHANNEL_CONFIG`:
+```js
+'nuevo-canal': {
+  tableId: 'tblXXXXXXXXXXXXXX',
+  fields: {
+    fecha: 'fldXXXXXXXXXXXXXX',
+    cliente: 'fldXXXXXXXXXXXXXX',
+    bot: 'fldXXXXXXXXXXXXXX',
+    sessionId: 'fldXXXXXXXXXXXXXX',
+  },
+},
 ```
 
----
+2. En `src/lib/channels.js`, agregar entrada en `CHANNELS`:
+```js
+{
+  id: 'nuevo-canal',
+  name: 'Nombre del Canal',
+  bot: 'NombreBot',
+  emoji: '🤖',
+  tableId: 'tblXXXXXXXXXXXXXX',
+  fields: { /* mismos IDs */ },
+  color: 'blue',
+  bgClass: 'bg-blue-50',
+  badgeClass: 'bg-blue-100 text-blue-700',
+  bubbleClass: 'bg-blue-600 text-white',
+  dotClass: 'bg-blue-500',
+},
+```
+
+3. Push → deploy automático.
 
 ## Troubleshooting
 
-**Error: AIRTABLE_TOKEN not found**
-→ Verificar que `.env.local` existe y tiene el token correcto
+**0 conversaciones en todos los canales**
+→ Verificar que `api/conversations.js` tiene `returnFieldsByFieldId=true` en el fetch a Airtable.
+→ Sin ese flag, todos los campos son `undefined` y no se crea ninguna sesión.
 
-**Error 401 en /api/conversations**
-→ El JWT expiró o es inválido. Hacer logout y login de nuevo.
+**401 en /api/conversations**
+→ El JWT expiró (dura 24h). Hacer logout y login de nuevo.
+→ O `AUTH_SECRET` cambió en Vercel — los tokens previos quedan inválidos.
 
-**Las conversaciones no cargan**
-→ Verificar en la consola del browser (F12) si hay errores de red
-→ Verificar que el `AIRTABLE_TOKEN` tenga los scopes `data.records:read`
+**Deploy bloqueado en Vercel ("committer not associated")**
+→ El email del committer git no coincide con el de la cuenta GitHub.
+→ Corregir con `git config user.email "mflowsuite@gmail.com"` y hacer un commit vacío.
 
-**shadcn/ui component no encontrado**
-→ Agregar el componente: `npx shadcn@latest add [nombre-componente]`
+**Chat en blanco al clickear una conversación**
+→ `session.messages` es undefined o vacío.
+→ `api/conversations.js` debe incluir el array `messages` en cada sesión.
+→ ChatView usa `session.messages` directamente (sin llamar a /api/messages).
+
+**Los cambios en el browser no se ven**
+→ Hacer hard refresh: Ctrl+Shift+R
+→ Vercel puede tardar ~60s en propagar el deploy nuevo.
