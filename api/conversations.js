@@ -22,16 +22,16 @@ const CHANNEL_CONFIG = {
 }
 
 async function fetchAllRecords(tableId, fields, token) {
-  const fieldIds = Object.values(fields).join(',')
   let records = []
   let offset = null
 
   do {
-    const params = new URLSearchParams({
-      'fields[]': Object.values(fields),
-      sort: JSON.stringify([{ field: fields.fecha, direction: 'desc' }]),
-      pageSize: 100,
-    })
+    const params = new URLSearchParams({ pageSize: 100 })
+    for (const fieldId of Object.values(fields)) {
+      params.append('fields[]', fieldId)
+    }
+    params.append('sort[0][field]', fields.fecha)
+    params.append('sort[0][direction]', 'desc')
     if (offset) params.set('offset', offset)
 
     const url = `https://api.airtable.com/v0/${BASE_ID}/${tableId}?${params}`

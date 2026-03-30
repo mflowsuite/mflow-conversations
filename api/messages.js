@@ -39,10 +39,10 @@ export default async function handler(req, res) {
   try {
     const params = new URLSearchParams({
       filterByFormula: `{${config.fields.sessionId}} = "${sessionId}"`,
-      sort: JSON.stringify([{ field: config.fields.fecha, direction: 'asc' }]),
       pageSize: 100,
     })
-    // Add field IDs
+    params.append('sort[0][field]', config.fields.fecha)
+    params.append('sort[0][direction]', 'asc')
     for (const fieldId of Object.values(config.fields)) {
       params.append('fields[]', fieldId)
     }
