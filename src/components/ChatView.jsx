@@ -32,10 +32,10 @@ function formatConversationText(session, channel) {
   return header + msgs.join('\n\n')
 }
 
-function CopyButtons({ session, channel }) {
+function ExportButton({ session, channel }) {
   const [copied, setCopied] = useState(false)
 
-  const handleCopy = () => {
+  const handleExport = () => {
     const text = formatConversationText(session, channel)
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true)
@@ -43,33 +43,39 @@ function CopyButtons({ session, channel }) {
     })
   }
 
-  if (copied) {
-    return (
-      <div className="flex gap-2 justify-end">
-        <span className="flex items-center gap-1.5 px-4 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium">
-          🆗 Copiado
-        </span>
-      </div>
-    )
+  return copied ? (
+    <span className="flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm font-medium">
+      🆗 Copiado
+    </span>
+  ) : (
+    <button
+      onClick={handleExport}
+      className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-sm transition-colors"
+      title="Exportar conversación"
+    >
+      📤 Exportar
+    </button>
+  )
+}
+
+function CopyBubbleButton({ text }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
   }
 
   return (
-    <div className="flex gap-2 justify-end">
-      <button
-        onClick={handleCopy}
-        className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-sm transition-colors"
-        title="Copiar conversación"
-      >
-        📋 Copiar
-      </button>
-      <button
-        onClick={handleCopy}
-        className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-sm transition-colors"
-        title="Exportar conversación"
-      >
-        📤 Exportar
-      </button>
-    </div>
+    <button
+      onClick={handleCopy}
+      className="opacity-0 group-hover:opacity-100 transition-opacity ml-1 text-base leading-none"
+      title="Copiar mensaje"
+    >
+      {copied ? '🆗' : '📋'}
+    </button>
   )
 }
 
@@ -109,7 +115,7 @@ export default function ChatView({ session, channelId }) {
             {session.messageCount} mensajes · {channel.bot} (bot)
           </p>
         </div>
-        <CopyButtons session={session} channel={channel} />
+        <ExportButton session={session} channel={channel} />
       </div>
 
       {/* Messages */}
@@ -136,7 +142,7 @@ function MessageTurn({ msg, channel }) {
     <div className="space-y-2">
       {/* Cliente */}
       {msg.cliente && (
-        <div className="flex justify-start">
+        <div className="flex justify-start group">
           <div className="max-w-[75%]">
             <div className="flex items-center gap-1.5 mb-1">
               <div className="w-5 h-5 rounded-full bg-slate-300 flex items-center justify-center">
@@ -146,6 +152,7 @@ function MessageTurn({ msg, channel }) {
               </div>
               <span className="text-xs text-slate-500 font-medium">Cliente</span>
               <span className="text-xs text-slate-400">{formatMessageDate(msg.fecha)}</span>
+              <CopyBubbleButton text={msg.cliente} />
             </div>
             <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm text-slate-800 shadow-sm">
               <div className="prose-bubble">
@@ -158,9 +165,10 @@ function MessageTurn({ msg, channel }) {
 
       {/* Bot */}
       {msg.bot && (
-        <div className="flex justify-end">
+        <div className="flex justify-end group">
           <div className="max-w-[75%]">
             <div className="flex items-center justify-end gap-1.5 mb-1">
+              <CopyBubbleButton text={msg.bot} />
               <span className="text-xs text-slate-400">{formatMessageDate(msg.fecha)}</span>
               <span className="text-xs font-medium text-slate-500">{channel.bot}</span>
               <div className={cn('w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold', channel.bubbleClass)}>
