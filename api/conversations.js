@@ -68,8 +68,7 @@ export default async function handler(req, res) {
     const sessionMap = new Map()
     for (const record of records) {
       const f = record.fields
-      const sessionId = f[config.fields.sessionId]
-      if (!sessionId) continue
+      const sessionId = f[config.fields.sessionId] || record.id
 
       if (!sessionMap.has(sessionId)) {
         sessionMap.set(sessionId, {

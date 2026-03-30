@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { getChannel } from '../lib/channels'
 import { cn, formatRelativeDate, truncate } from '../lib/utils'
@@ -39,6 +39,8 @@ export default function ConversationList({ channelId, activeSessionId, onSelect,
     setSessions([])
     setCursor(null)
     loadSessions(true)
+    const interval = setInterval(() => loadSessions(true), 30000)
+    return () => clearInterval(interval)
   }, [channelId]) // eslint-disable-line
 
   const filtered = sessions.filter((s) => {
