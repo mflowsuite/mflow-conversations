@@ -95,9 +95,9 @@ export default function ChatView({ session, channelId }) {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-screen bg-slate-50 min-w-0">
+    <div className="flex-1 flex flex-col h-full bg-slate-50 min-w-0">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-6 py-4 flex items-center gap-3 flex-shrink-0">
+      <div className="bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3 flex-shrink-0">
         <span className="text-2xl">{channel.emoji}</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -109,6 +109,7 @@ export default function ChatView({ session, channelId }) {
             {session.messageCount} mensajes · {channel.bot} (bot)
           </p>
         </div>
+        <CopyButtons session={session} channel={channel} />
       </div>
 
       {/* Messages */}
@@ -126,10 +127,6 @@ export default function ChatView({ session, channelId }) {
         <div ref={bottomRef} />
       </div>
 
-      {/* Footer with copy/export buttons */}
-      <div className="bg-white border-t border-slate-100 px-6 py-3 flex-shrink-0">
-        <CopyButtons session={session} channel={channel} />
-      </div>
     </div>
   )
 }
