@@ -39,8 +39,8 @@ export default async function handler(req, res) {
   try {
     let records
 
-    // If sessionId is a record ID fallback (no real sessionId), fetch that record directly
     if (sessionId.startsWith('rec')) {
+      // Direct record fetch by Airtable record ID
       const url = `https://api.airtable.com/v0/${BASE_ID}/${config.tableId}/${sessionId}`
       const airtableRes = await fetch(url, {
         headers: { Authorization: `Bearer ${airtableToken}` },
@@ -48,16 +48,42 @@ export default async function handler(req, res) {
       if (!airtableRes.ok) throw new Error(`Airtable error: ${airtableRes.status}`)
       const record = await airtableRes.json()
       records = [record]
-    } else {
-      const params = new URLSearchParams({
-        filterByFormula: `{${config.fields.sessionId}} = "${sessionId}"`,
-        pageSize: 100,
-      })
+
+    } else if (sessionId.startsWith('time_')) {
+      // Time-window group: time_STARTSECONDS_ENDSECONDS
+      const parts = sessionId.split('_')
+      const startMs = parseInt(parts[1], 10) * 1000
+      const endMs = parseInt(parts[2], 10) * 1000
+      // Add 1-second buffer so boundary records are included
+      const startIso = new Date(startMs - 1000).toISOString()
+      const endIso = new Date(endMs + 1000).toISOString()
+
+      const formula = `AND(IS_AFTER({Fecha}, '${startIso}'), IS_BEFORE({Fecha}, '${endIso}'), {sessionId} = "")`
+      const params = new URLSearchParams({ filterByFormula: formula, pageSize: 100 })
       params.append('sort[0][field]', config.fields.fecha)
       params.append('sort[0][direction]', 'asc')
       for (const fieldId of Object.values(config.fields)) {
         params.append('fields[]', fieldId)
       }
+
+      const url = `https://api.airtable.com/v0/${BASE_ID}/${config.tableId}?${params}`
+      const airtableRes = await fetch(url, {
+        headers: { Authorization: `Bearer ${airtableToken}` },
+      })
+      if (!airtableRes.ok) throw new Error(`Airtable error: ${airtableRes.status}`)
+      const data = await airtableRes.json()
+      records = data.records
+
+    } else {
+      // Real sessionId — use field NAME {sessionId} not field ID
+      const formula = `{sessionId} = "${sessionId}"`
+      const params = new URLSearchParams({ filterByFormula: formula, pageSize: 100 })
+      params.append('sort[0][field]', config.fields.fecha)
+      params.append('sort[0][direction]', 'asc')
+      for (const fieldId of Object.values(config.fields)) {
+        params.append('fields[]', fieldId)
+      }
+
       const url = `https://api.airtable.com/v0/${BASE_ID}/${config.tableId}?${params}`
       const airtableRes = await fetch(url, {
         headers: { Authorization: `Bearer ${airtableToken}` },
