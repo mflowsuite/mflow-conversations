@@ -19,6 +19,10 @@ const CHANNEL_CONFIG = {
     tableId: 'tblxm6kydaxl4kPuK',
     fields: { fecha: 'fldaGYbs4yzIESPIG', cliente: 'fldaQsUpKY7iu4E9v', bot: 'fldw9dpCVxYGp2qTI', sessionId: 'fldBz27zAK2GjSf1y' },
   },
+  'positivo-juguetes': {
+    tableId: 'tblUZsC3HmUzz85gv',
+    fields: { fecha: 'fldxjktXyKWW9G5ur', cliente: 'fldxtOcUeauwZSUVg', bot: 'fldTMzH7pJlUUQGFt', sessionId: 'fldyz4E8DLOwOd1TC' },
+  },
 }
 
 const GAP_MS = 15 * 60 * 1000 // 15 minutes between messages = new session
