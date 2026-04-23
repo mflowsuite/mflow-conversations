@@ -71,6 +71,24 @@ export const CHANNELS = [
     bubbleClass: 'bg-pink-500 text-white',
     dotClass: 'bg-pink-400',
   },
+  {
+    id: 'positivo-juguetes',
+    name: 'Positivo Juguetes',
+    bot: 'Tali',
+    emoji: '🧸',
+    tableId: 'tblUZsC3HmUzz85gv',
+    fields: {
+      fecha: 'fldxjktXyKWW9G5ur',
+      cliente: 'fldxtOcUeauwZSUVg',
+      bot: 'fldTMzH7pJlUUQGFt',
+      sessionId: 'fldyz4E8DLOwOd1TC',
+    },
+    color: 'orange',
+    bgClass: 'bg-orange-50',
+    badgeClass: 'bg-orange-100 text-orange-700',
+    bubbleClass: 'bg-orange-500 text-white',
+    dotClass: 'bg-orange-400',
+  },
 ]
 
 export function getChannel(id) {
